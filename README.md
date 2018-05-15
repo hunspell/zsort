@@ -6,8 +6,8 @@ demonstration of Hunspell morphological analysis:
 <code>
 $ echo 'pacsi
 pácsó' | zsort
-<i>pácsó</i>
-<i>pacsi</i>
+<br><i>pácsó</i>
+<br><i>pacsi</i>
 </code>
 
 # Background
