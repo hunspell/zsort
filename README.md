@@ -3,12 +3,11 @@
 zsort is a Hungarian sorting script written in awk, also a
 demonstration of Hunspell morphological analysis:
 
-<code>
-$ echo 'pacsi
-pácsó' | zsort
-<br><i>pácsó</i>
-<br><i>pacsi</i>
-</code>
+```
+$ echo -e 'pacsi\npácsó' | zsort
+pácsó
+pacsi
+```
 
 # Background
 
