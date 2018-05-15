@@ -350,7 +350,29 @@ function load_morph_data(n) {
           $1 = gensub(remove($2), remove(set($2)), 1, $1)
       }
 
-      if (HY) $1 = gensub(remove(HY), remove(set(HY)), 1, $1)
+      if (HY) {
+           hy = gensub(remove(HY), remove(set(HY)), 1, $1)
+
+           # try to match at morphological alternations
+           # For example hy:kis|szo-ba for the word kisszobát
+
+           # TEST: kisszoba
+           # TEST: kisszobában
+           # TEST: kisuvickol
+           # TEST: vízsugár
+           # TEST: vízsugarakat
+           # TEST: vizsga
+
+           if (hy == $1 && HY ~ /[aeoösyz]$/) {
+               HY_shorter = gensub(/.$/, "", 1, HY)
+               hy = gensub(remove(HY_shorter), remove(set(HY_shorter)), 1, $1)
+           }
+           if (hy == $1 && HY ~ /[[:alnum:]]{3}$/) {
+               HY_shorter = gensub(/..$/, "", 1, HY)
+               hy = gensub(remove(HY_shorter), remove(set(HY_shorter)), 1, $1)
+           }
+           $1 = hy
+      }
       if (ZSAG) $1 = gensub(/z(s[áé]g)/, "z"SEPARATOR"\\1", 1, $1)
       if (CSZOR) $1 = gensub(/([cz])sz/, "\\1"SEPARATOR"sz", 1, $1)
       if (LEGGY) $1 = gensub(/leggy/, "leg"SEPARATOR"gy", 1, $1)
