@@ -10,6 +10,10 @@
 #
 # Usage: cat text | zsort
 #
+# or with alternative version of Hunspell:
+#
+# cat text | HUNSPELL=hunspell zsort
+#
 # Option "delimiter": specify a regex field separator, and
 # zsort uses only the text of the line before the first occurence
 # of this delimiter (without matching, it uses the full line):
@@ -291,7 +295,7 @@ function load_morph_data(n) {
           PREF  = match ($0, /^(nyolc|kilenc|harminc)cs.*st:(cs)/, m) ||
                   match ($0, /^(nyolc|kilenc|harminc)s.*st:(s)/, m) ||
                   match ($0, /^([^ \t]*l)ly.*st:(ly)/, m) || # féllyukas
-                  match ($0, /^([^ \t]*n)ny.*st:(ny)/, m) || 
+                  match ($0, /^([^ \t]*n)ny.*st:(ny)/, m) ||
                   match ($0, /^(két|öt|hat|hét)ty.*st:(ty)/, m) ||
                   match ($0, /^(tíz|száz)zs.*st:(zs)/, m) ||
                   match ($0, /^(tíz|száz)s.*st:(s)/, m) ?
@@ -441,7 +445,7 @@ function vowel_sort(a, l,     b, c, idx) {
 
 # sort the rest without morphological analysis
 
-{ 
+{
   if (delimiter != "" && $0 ~ delimiter)
       delim = gensub(delimiter ".*$", "", 1, $0)
   else
