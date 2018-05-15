@@ -1,21 +1,31 @@
 # About zsort
 
 zsort is a Hungarian sorting script written in awk, also a
-demonstration of Hunspell morphological analysis.
+demonstration of Hunspell morphological analysis:
 
-Hungarian digraphs cs, dz, gy, ly, ny, sz, ty, and zs, also
-trigraph dzs, moreover their simplified double forms
-ccs, ddz, ggy, lly, nny, ssz, tty, zzs and ddzs result frequent
-ambiguity in Hungarian word collating, sorting and hyphenation.
-Recent collate algorithms of glibc locale and ICU/Unicode CLDR cannot
-handle this ambiguity, resulting bad Hungarian collation and sorting.
+```
+$ echo 'pacsi
+pácsó' | zsort
+*pácsó*
+*pacsi*
+```
+
+# Background
+
+Hungarian digraphs *cs*, *dz*, *gy*, *ly*, *ny*, *sz*, *ty*,
+and *zs*, also trigraph *dzs*, moreover their simplified
+double forms *ccs*, *ddz*, *ggy*, *lly*, *nny*, *ssz*, *tty*,
+*zzs* and *ddzs* result frequent ambiguity in Hungarian word
+collating, sorting and hyphenation. Recent collate algorithms
+of glibc locale and ICU/Unicode CLDR cannot handle this
+ambiguity, resulting bad Hungarian collation and sorting.
 
 zsort is a free command-line equivalent of the web tool akhsort
-(that developed by Research Institute for Linguistics of
-Hungarian Academy of Sciences). But unlike akhsort, zsort works
+(that was developed by Research Institute for Linguistics of
+Hungarian Academy of Sciences). Unlike akhsort, zsort works
 with compound words and titles correctly, and it has no limitations
 (for example, it can sort millions of words within a few minutes) and
-known dictionary bugs (like bad sorting of “másszor” in akhsort).
+known dictionary bugs (like bad sorting of *másszor* in akhsort).
 
 # Installation
 
@@ -29,6 +39,9 @@ sudo cp hu_HU.aff hu_HU.dic /usr/share/hunspell
 ```
 
 # Usage
+
+zsort waits its data from the standard input, and it prints the
+sorted lines in the standard output:
 
 ```
 cat text | zsort
