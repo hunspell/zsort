@@ -200,24 +200,24 @@ function convert_to_index(st) {
 # keep crucial break points
 
 function set(st) {
-  st = gensub(/([cz])[-=|]\|?(s)/, "\\1"SEPARATOR"\\2", "g", st)
-  st = gensub(/([ds])[-=|]\|?(z)/, "\\1"SEPARATOR"\\2", "g", st)
-  st = gensub(/([glnt])[-=|]\|?(y)/, "\\1"SEPARATOR"\\2", "g", st)
-  st = gensub(/(c)[-=|]\|?(cs)/, "\\1"SEPARATOR"\\2", "g", st)
-  st = gensub(/(d)[-=|]\|?(dz)/, "\\1"SEPARATOR"\\2", "g", st)
-  st = gensub(/(g)[-=|]\|?(gy)/, "\\1"SEPARATOR"\\2", "g", st)
-  st = gensub(/(l)[-=|]\|?(ly)/, "\\1"SEPARATOR"\\2", "g", st)
-  st = gensub(/(n)[-=|]\|?(ny)/, "\\1"SEPARATOR"\\2", "g", st)
-  st = gensub(/(s)[-=|]\|?(sz)/, "\\1"SEPARATOR"\\2", "g", st)
-  st = gensub(/(t)[-=|]\|?(ty)/, "\\1"SEPARATOR"\\2", "g", st)
-  st = gensub(/(z)[-=|]\|?(zs)/, "\\1"SEPARATOR"\\2", "g", st)
+  st = gensub(/([cz])[-.=|]\|?(s)/, "\\1"SEPARATOR"\\2", "g", st)
+  st = gensub(/([ds])[-.=|]\|?(z)/, "\\1"SEPARATOR"\\2", "g", st)
+  st = gensub(/([glnt])[-.=|]\|?(y)/, "\\1"SEPARATOR"\\2", "g", st)
+  st = gensub(/(c)[-.=|]\|?(cs)/, "\\1"SEPARATOR"\\2", "g", st)
+  st = gensub(/(d)[-.=|]\|?(dz)/, "\\1"SEPARATOR"\\2", "g", st)
+  st = gensub(/(g)[-.=|]\|?(gy)/, "\\1"SEPARATOR"\\2", "g", st)
+  st = gensub(/(l)[-.=|]\|?(ly)/, "\\1"SEPARATOR"\\2", "g", st)
+  st = gensub(/(n)[-.=|]\|?(ny)/, "\\1"SEPARATOR"\\2", "g", st)
+  st = gensub(/(s)[-.=|]\|?(sz)/, "\\1"SEPARATOR"\\2", "g", st)
+  st = gensub(/(t)[-.=|]\|?(ty)/, "\\1"SEPARATOR"\\2", "g", st)
+  st = gensub(/(z)[-.=|]\|?(zs)/, "\\1"SEPARATOR"\\2", "g", st)
   return st
 }
 
 # remove all break points
 
 function remove(st) {
-  return gensub("[-=|]", "", "g", st)
+  return gensub("[-.=|]", "", "g", st)
 }
 
 # annotate words based on morphological data, and send to sort
