@@ -7,7 +7,7 @@ Hungarian digraphs cs, dz, gy, ly, ny, sz, ty, and zs, also
 trigraph dzs, moreover their simplified double forms
 ccs, ddz, ggy, lly, nny, ssz, tty, zzs and ddzs result frequent
 ambiguity in Hungarian word collating, sorting and hyphenation.
-Recent collate algorithms of glibc locale and ICU/CLDR cannot
+Recent collate algorithms of glibc locale and ICU/Unicode CLDR cannot
 handle this ambiguity, resulting bad Hungarian collation and sorting.
 
 zsort is a free command-line equivalent of the web tool akhsort
@@ -30,13 +30,17 @@ sudo cp hu_HU.aff hu_HU.dic /usr/share/hunspell
 
 # Usage
 
+```
 cat text | zsort
+```
 
 # Unit testing
 
 Check hunspell and its Hungarian dictionary (Magyar Ispell 1.7 or newer):
 
+```
 zsort -v check=1
+```
 
 # More
 
