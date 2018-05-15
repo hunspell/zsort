@@ -1,0 +1,541 @@
+#!/usr/bin/gawk -f
+#
+# zsort - sort lines of Hungarian text files using Hunspell
+#         morphological analysis with Magyar Ispell 1.7 language data,
+#         fixing known problems of collate algorithm of glibc and ICU.
+#
+#         Lines can contain words and titles.
+#
+# 2018 (c) László Németh, Copying: MPL 2, GNU LGPL 2 dual-license
+#
+# Usage: cat text | zsort
+#
+# Option "delimiter": specify a regex field separator, and
+# zsort uses only the text of the line before the first occurence
+# of this delimiter (without matching, it uses the full line):
+#
+# cat text | zsort -v delimiter=","
+#
+# Option "debug": show indices with visible separator "@",
+# also it keeps temporary files /tmp/zsort-temp-morph.*:
+#
+# cat text | zsort -v debug=1
+#
+# Option "check": run unit tests:
+#
+# zsort -v check=1
+# zsort -v check=1 -v debug=1
+#
+# = Description =
+#
+# Sorting correctly in Hungarian, zsort calls Hunspell
+# to analyze the words with digraphs and trigraphs, adding
+# a separator in the ambiguous positions. Magyar Ispell 1.7
+# Hungarian Hunspell dictionary contains language data for
+# disambiguation of di- and trigraphs and similar character
+# sequences in Hungarian words, including unknown compounds
+# handled by heuristic compound recognition algorithm of
+# Hunspell spell checker and morphological analyzer.
+#
+# After separator insertion, zsort expands the simplified
+# double consonants and removes the non-letter words for
+# index generation. Based on these indices, command-line sort
+# can sort the words and titles correctly also using older
+# glibc (<2.26) (that sorted simplified double digraphs
+# between single and double digraphs using an artificial
+# category instead sorting them as digraphs (and trigraphs)).
+#
+# Depending the existence of the other known bug of Hungarian
+# glibc collate rules, zsort postprocess the sorted list,
+# reverting the bad order "zsáner", "zsanér", handling also
+# the uppercase/lowercase precedence here.
+
+# === UNIT TESTING ===
+
+function do_test() {
+  if (n == 0)
+      return
+  TEMPGEN = "mktemp /tmp/zsort-check-test.XXXXXXXX"
+  TEMPGEN | getline TEMPCHECKFILE
+  for (i = 1; i <= n; i++) {
+      print TEST[i] > TEMPCHECKFILE
+  }
+  close(TEMPGEN)
+  close(TEMPCHECKFILE)
+  if (system("zsort -v debug="(debug) " < " TEMPCHECKFILE " >" TEMPCHECKFILE".zsort; diff -u "TEMPCHECKFILE " " TEMPCHECKFILE ".zsort >"TEMPCHECKFILE".diff")) {
+      system("cat "TEMPCHECKFILE".diff")
+  }
+  system("rm " TEMPCHECKFILE " " TEMPCHECKFILE ".*")
+  n = 0
+}
+
+function do_check() {
+  "whereis zsort" | getline $0
+  WHERE_I_AM = $2
+  n = 0
+  while (getline $0 < WHERE_I_AM) {
+      if (match($0, "^\\s*# TEST:\\s*(.*)", m)) {
+          TEST[++n] = m[1]
+      } else {
+          do_test()
+      }
+  }
+  do_test()
+}
+
+# === BEGIN ===
+
+BEGIN {
+  # call inner test
+  if (check == 1) {
+      do_check()
+      exit(1)
+  }
+  # check ordering bug "zsáner" < "zsanér" of glibc
+  "mktemp /tmp/zsort-temp-test.XXXXXXXX" | getline TEMPTESTFILE
+  ORDERING_SORT = "LC_COLLATE=hu_HU.UTF-8 sort >" TEMPTESTFILE
+  print "zsáner\nzsanér" | ORDERING_SORT
+  close(ORDERING_SORT)
+  getline ordering < TEMPTESTFILE
+  close(TEMPTESTFILE)
+  system("rm " TEMPTESTFILE)
+
+  PROCESS_OR_SAVE = "| cut -f2- | sed 's/"SEPARATOR"//g'"
+  if (ordering == "zsáner") {
+      "mktemp /tmp/zsort-temp-sort.XXXXXXXX" | getline TEMPSORTFILE
+      PROCESS_OR_SAVE = ">" TEMPSORTFILE
+      # create conversion table to fix ordering bug
+      vowel_long = "áéíóőúűÁÉÍÓŐÚŰ"
+      vowel_short = "aeioöuüAEIOÖUÜ"
+      n = split(vowel_long, a, //)
+      split(vowel_short, b, //)
+      for (i = 1; i <= n; i++) {
+      aa2a[a[i]] = b[i]
+      aa2a[b[i]] = b[i]
+      }
+  }
+
+  # regex matching works for uppercase words
+  IGNORECASE = 1
+
+  # TEMPFILE = temporary file for morphological analysis
+  "mktemp /tmp/zsort-temp-morph.XXXXXXXX" | getline TEMPFILE
+
+  # ANALYSING = command for morphological analysis
+  HUNSPELL = ENVIRON["HUNSPELL"]
+  if (HUNSPELL=="")
+      HUNSPELL = "hunspell -d hu_HU"
+
+  ANALYSING = HUNSPELL" -m >" TEMPFILE
+
+  # separator
+  SEPARATOR = (debug==1) ? "@" : "‌"
+
+  # SORT = command for sorting (saved in temp file, if glibc has the ordering bug "zsáner" < "zsanér"
+  SORT = "LC_COLLATE=hu_HU.UTF-8 sort -k 1,1 " PROCESS_OR_SAVE
+}
+
+# === BASE FUNCTIONS ===
+
+# create index from words
+
+# TEST: A pácolás története
+# TEST: A pácsók története
+# TEST: A Pácsók Története
+# TEST: A PÁCSÓK TÖRTÉNETE
+# TEST: A pacsi és az eb
+# TEST: Baló Alajos
+# TEST: Balog Ádám
+# TEST: Balog György
+# TEST: Balog Yvette
+# TEST: Balog Zoltán
+# TEST: Balogyai Aladár
+# TEST: Baló Gyula
+# test: betű
+# test: Betű
+# test: BETŰ
+# TEST: Haj, rá pácolaj
+# TEST: Hajrá, pácolaj
+# TEST: Haj, rá pácsó
+# TEST: Hajrá, pácsó
+# TEST: Haj, rá páctinta
+# TEST: Hajrá, páctinta
+
+function convert_to_index(st) {
+  st = gensub(/ccs/, "cscs", "g", st)
+  st = gensub(/ddzs/, "dzsdzs", "g", st)
+  st = gensub(/ddz/, "dzdz", "g", st)
+  st = gensub(/ggy/, "gygy", "g", st)
+  st = gensub(/lly/, "lyly", "g", st)
+  st = gensub(/nny/, "nyny", "g", st)
+  st = gensub(/(^|[^cz])ssz/, "\\1szsz", "g", st)
+  st = gensub(/tty/, "tyty", "g", st)
+  st = gensub(/(^|[^ds])zzs/, "\\1zszs", "g", st)
+  if (st ~ /[^[:alnum:]]/) {
+      st = gensub("(c)[^[:alnum:]]+(cs)", "\\1" SEPARATOR "\\2", "g", st)
+      st = gensub("(c)[^[:alnum:]]+(s)", "\\1" SEPARATOR "\\2", "g", st)
+      st = gensub("(d)[^[:alnum:]]+(dz)", "\\1" SEPARATOR "\\2", "g", st)
+      st = gensub("(d)[^[:alnum:]]+(z)", "\\1" SEPARATOR "\\2", "g", st)
+      st = gensub("(g)[^[:alnum:]]+(gy)", "\\1" SEPARATOR "\\2", "g", st)
+      st = gensub("(g)[^[:alnum:]]+(y)", "\\1" SEPARATOR "\\2", "g", st)
+      st = gensub("(l)[^[:alnum:]]+(ly)", "\\1" SEPARATOR "\\2", "g", st)
+      st = gensub("(l)[^[:alnum:]]+(y)", "\\1" SEPARATOR "\\2", "g", st)
+      st = gensub("(n)[^[:alnum:]]+(ny)", "\\1" SEPARATOR "\\2", "g", st)
+      st = gensub("(n)[^[:alnum:]]+(y)", "\\1" SEPARATOR "\\2", "g", st)
+      st = gensub("(s)[^[:alnum:]]+(sz)", "\\1" SEPARATOR "\\2", "g", st)
+      st = gensub("(s)[^[:alnum:]]+(z)", "\\1" SEPARATOR "\\2", "g", st)
+      st = gensub("(t)[^[:alnum:]]+(ty)", "\\1" SEPARATOR "\\2", "g", st)
+      st = gensub("(t)[^[:alnum:]]+(y)", "\\1" SEPARATOR "\\2", "g", st)
+      st = gensub("(z)[^[:alnum:]]+(zs)", "\\1" SEPARATOR "\\2", "g", st)
+      st = gensub("(z)[^[:alnum:]]+(s)", "\\1" SEPARATOR "\\2", "g", st)
+      st = gensub("[^[:alnum:]""\\1" SEPARATOR "\\2""]+", "", "g", st)
+  }
+  return st
+}
+
+# keep crucial break points
+
+function set(st) {
+  st = gensub(/([cz])[-=|]\|?(s)/, "\\1"SEPARATOR"\\2", "g", st)
+  st = gensub(/([ds])[-=|]\|?(z)/, "\\1"SEPARATOR"\\2", "g", st)
+  st = gensub(/([glnt])[-=|]\|?(y)/, "\\1"SEPARATOR"\\2", "g", st)
+  st = gensub(/(c)[-=|]\|?(cs)/, "\\1"SEPARATOR"\\2", "g", st)
+  st = gensub(/(d)[-=|]\|?(dz)/, "\\1"SEPARATOR"\\2", "g", st)
+  st = gensub(/(g)[-=|]\|?(gy)/, "\\1"SEPARATOR"\\2", "g", st)
+  st = gensub(/(l)[-=|]\|?(ly)/, "\\1"SEPARATOR"\\2", "g", st)
+  st = gensub(/(n)[-=|]\|?(ny)/, "\\1"SEPARATOR"\\2", "g", st)
+  st = gensub(/(s)[-=|]\|?(sz)/, "\\1"SEPARATOR"\\2", "g", st)
+  st = gensub(/(t)[-=|]\|?(ty)/, "\\1"SEPARATOR"\\2", "g", st)
+  st = gensub(/(z)[-=|]\|?(zs)/, "\\1"SEPARATOR"\\2", "g", st)
+  return st
+}
+
+# remove all break points
+
+function remove(st) {
+  return gensub("[-=|]", "", "g", st)
+}
+
+# annotate words based on morphological data, and send to sort
+
+function load_morph_data(n) {
+  z = 0
+  while ((getline $0 < TEMPFILE) > 0) {
+      orig_word = $1
+      # fix bad breaking of proper names, for example: Kaszab -> kas + zab
+
+      # TEST: kasza
+      # TEST: Kaszab
+
+      propername = $0 ~ /po:noun_prs/
+
+      # suffix -ság/-ség
+
+      # TEST: vitézség
+      # TEST: vitézvirág
+
+      ZSAG = $0 ~ /[^s]zs[áé]g.*st:[^ \t]*[^ \ts]z[ \t].*ds:sÁg_ABSTRACT_noun/
+
+      # suffix -szor/-szer(/-ször)
+      # nyolcszor, kilencszer, tízszer, harmincszor, százszor -> nyolc-szor, kilenc-szer, tíz-szer, harminc-szor, száz-szor
+
+      # TEST: nyolcszor
+      # TEST: nyolctól
+
+      CSZOR = $0 ~ /(c|[^s]z)sz[eo]r.*ds:szOr(_MULTIPLICATION_adv|tA_MULTORD_adv)/
+
+      # prefix leg-/legesleg-/legeslegesleg-: leggyakoribb -> leg|gyakoribb
+
+      # TEST: leggyakoribb
+      # TEST: legyező
+
+      LEGGY = $0 ~/_SUPERLATIVE_adj.*st:gy/
+
+      # suffix -szerű
+
+      # TEST: vízszerű
+      # TEST: vízzel
+      # TEST: vizsla
+
+      ZSZERU = $0 ~ /([csz])szerű.*ds:szerű_SORT_adj/
+
+      # suffix -nyi, kamionnyi, vagonnyi etc.
+
+      # TEST: vagonnyi
+      # TEST: vagonzár
+      # TEST: vágónyílás
+
+      NNYI = $0 ~ /nnyi.*st:[^ \t]*n[ \t].*is:nyi_MEASURE_adj/
+
+      # "s" pronounced as "sz" at the end of the foreign word + -szal/-szel/-szá/-szé
+
+      # TEST: opusszal
+      # TEST: opustól
+
+      SSZAL = $0 ~ /ssz(al|á|el|é)[ \t].*st:[^ \t]*s[ \t].*is:(INSTR|TRANS)/
+
+      # numbers as prefixes
+
+      # TEST: huszonnyolcas
+      # TEST: huszonnyolcszor
+      # TEST: huszonnyolcunk
+      # TEST: Huszonya
+      # TEST: kéttyúkos
+      # TEST: kettyen
+      # TEST: nyolccsomós
+      # TEST: nyolcsejtes
+      # TEST: nyolcszor
+      # TEST: nyolcunk
+
+      if ($0 ~ /po:adj_num/) {
+          PREF  = match ($0, /^(nyolc|kilenc|harminc)cs.*st:(cs)/, m) ||
+                  match ($0, /^(nyolc|kilenc|harminc)s.*st:(s)/, m) ||
+                  match ($0, /^([^ \t]*l)ly.*st:(ly)/, m) || # féllyukas
+                  match ($0, /^([^ \t]*n)ny.*st:(ny)/, m) || 
+                  match ($0, /^(két|öt|hat|hét)ty.*st:(ty)/, m) ||
+                  match ($0, /^(tíz|száz)zs.*st:(zs)/, m) ||
+                  match ($0, /^(tíz|száz)s.*st:(s)/, m) ?
+                      "(" m[1] ")(" m[2] ")" : 0
+
+      # verb prefixes: meg-, agyon-
+
+      # TEST: agyonnyom
+      # TEST: agyonüt
+      # TEST: meggyűlöl
+      # TEST: meggyevés
+
+      } else if ($0 ~ /ip:PREF/) {
+          PREF = match($0, /sp:([^ \t]*g)[ \t]*st:(gy)/, m) ||
+                 match($0, /sp:([^ \t]*l)[ \t]*st:(ly)/, m) ||
+                 match($0, /sp:([^ \t]*n)[ \t]*st:(ny)/, m) ||
+                 match($0, /sp:([^ \t]*t)[ \t]*st:(ty)/, m) ?
+                     "(" m[1] ")(" m[2] ")" : 0
+      } else
+          PREF = 0
+
+      # break false consonants based on dictionary item "hy:": más-szor
+
+      # TEST: község
+      # TEST: községgyűlés
+      # TEST: községhatár
+      # TEST: köztársaság
+      # TEST: másszor
+      # TEST: másszon
+      # TEST: pácsó
+      # TEST: pacsi
+      # TEST: penny
+      # TEST: penzum
+
+      HY = match($0, /hy:([^ \t]*)/, m) ? m[1] : 0
+
+      # mark compound boundaries:
+
+      # TEST: adásszünet
+      # TEST: Adásszünet idejére
+      # TEST: adásszünetkérés
+      # TEST: adástervezet
+      # TEST: plüsszebra
+      # TEST: Plüster
+      # TEST: sasszem
+      # TEST: sásszem
+      # TEST: sasszém
+
+      if ($0 ~ /pa:/) {
+          # keep only pa: fields and convert to a hy: field
+          $0 = gensub("\\|", " ", 1, gensub("[ \t]*pa:", "|", "g", gensub(/([^p].|.[^a]):([^ \t]*)/, "", "g", $0)))
+          $1 = gensub(remove($2), remove(set($2)), 1, $1)
+      }
+
+      if (HY) $1 = gensub(remove(HY), remove(set(HY)), 1, $1)
+      if (ZSAG) $1 = gensub(/z(s[áé]g)/, "z"SEPARATOR"\\1", 1, $1)
+      if (CSZOR) $1 = gensub(/([cz])sz/, "\\1"SEPARATOR"sz", 1, $1)
+      if (LEGGY) $1 = gensub(/leggy/, "leg"SEPARATOR"gy", 1, $1)
+      if (ZSZERU) $1 = gensub(/([csz])szerű/, "\\1"SEPARATOR"szerű", 1, $1)
+      if (NNYI) $1 = gensub(/nnyi/, "n"SEPARATOR"nyi", 1, $1)
+      if (SSZAL) $1 = gensub(/ssz(al|á|el|é)$/, "s"SEPARATOR"sz\\1", 1, $1)
+      if (PREF) $1 = $1 = gensub(PREF, "\\1" SEPARATOR "\\2", 1, $1)
+      if (orig_word != $1 || (propername && orig_word in morph)) {
+          morph[orig_word] = $1
+      }
+  }
+}
+
+# === TO FIX GLIBC ORDERING ===
+
+# functions to fix glibc ordering bug: same words, but
+# different vowel length in two or more positions, eg. zsanér, zsáner
+function print_without_index_and_separator(st) {
+  st = substr(st, index(st, "\t") + 1)
+  if (st ~ SEPARATOR)
+      print gensub(SEPARATOR, "", "g", st)
+  else
+      print st
+}
+
+function same_with_different_accents(st, st2,    a, b, i, l, n) {
+  # check only the first fields, the indices
+  l = index(st, "\t")
+  if (l <= 1 || l != index(st2, "\t"))
+      return 0
+  # compare last character
+  ch = substr(st, l-1)
+  ch2 = substr(st2, l-1)
+  if (tolower(ch) != tolower(ch2) && tolower(aa2a[ch]) != tolower(aa2a[ch2]))
+      return 0
+  # compare all characters
+  n = split(tolower(st), a, //)
+  split(tolower(st2), b, //)
+  for (i = l-1; i > 0; i--) {
+      if (a[i] != b[i] && (aa2a[a[i]] == "" || aa2a[a[i]] != aa2a[b[i]]))
+          return 0
+  }
+  return 1
+}
+
+# index: get vowels and convert to long (l) or short (s)
+# [l < s and we will make revert ordering for the rule "lower case first"]
+# agák -> aá -> sl
+# ágak -> áa -> ls
+function get_index(st,   i) {
+  i = gensub("[^" vowel_long vowel_short "]", "", "g", st)
+  i = gensub("[" vowel_long "]", "l", "g", i)
+  i = gensub("[" vowel_short "]", "s", "g", i)
+  return i
+}
+
+function vowel_sort(a, l,     b, c, idx) {
+  # make index
+  for (i = 1; i <= l; i++) {
+      idx = get_index(a[i]) a[i]
+      b[idx] = a[i]
+      c[i] = idx
+  }
+  # sort only if needed (to keep correct order of Hajrá pácsó/Haj, rá pácsó)
+  if (substr(c[1], 1, index(c[1], "\t")) != substr(c[l], 1, index(c[l], "\t"))) {
+      asort(c, result)
+      for(i=l; i > 0; i--)
+          print_without_index_and_separator(b[result[i]])
+  } else {
+      for(i=1; i <= l; i++)
+          print_without_index_and_separator(a[i])
+  }
+}
+
+# === FILTERING INPUT LINES ===
+
+# analyze the words with double consonants
+
+/cs|dz|gy|ly|ny|sz|ty|zs/ {
+  # store input for postprocessing
+  input[$0]++
+  if (delimiter != "" && $0 ~ delimiter)
+      $0 = gensub(delimiter ".*$", "", 1, $0)
+  for (i = 1; i <= NF; i++) {
+      if ($(i) ~ /cs|dz|gy|ly|ny|sz|ty|zs/ && !($(i) in analyzed)) {
+          print $(i) | ANALYSING
+          analyzed[$(i)] = 1
+      }
+  }
+  next
+}
+
+# sort the rest without morphological analysis
+
+{ 
+  if (delimiter != "" && $0 ~ delimiter)
+      delim = gensub(delimiter ".*$", "", 1, $0)
+  else
+      delim = $0
+  print convert_to_index(delim) "\t" $0 | SORT
+}
+
+# === PROCESSING MORPHOLOGICAL DATA ===
+
+END {
+  if (check == 1)
+      exit(0)
+
+  close(ANALYSING)
+
+  load_morph_data()
+
+  for (i in input) {
+      if (delimiter != "" && i ~ delimiter)
+          $0 = gensub(delimiter ".*$", "", 1, i)
+      else
+          $0 = i
+      for (j = 1; j <= NF; j++) {
+          item = $(j)
+          if (item~/[[:punct:]]/) {
+              # remove punctuation for index
+              item = gensub(/.*([-[:alnum:]]+).*/, "\\1", 1, item)
+          }
+          if (item in morph) {
+              # break false consonant, keeping punctuation around the word
+              $(j) = gensub(item, morph[item], 1, $(j))
+          }
+      }
+      for (j = 0; j < input[i]; j++) {
+          print convert_to_index($0) "\t" i | SORT
+      }
+  }
+  close(SORT)
+
+  # fix ordering bug "zsáner" < "zsanér"
+
+  # TEST: zsaner
+  # TEST: Zsaner
+  # TEST: ZSANER
+  # TEST: zsanér
+  # TEST: Zsanér
+  # TEST: ZSANÉR
+  # TEST: zsáner
+  # TEST: Zsáner
+  # TEST: ZSÁNER
+  # TEST: zsánér
+  # TEST: Zsánér
+  # TEST: ZSÁNÉR
+
+  # TEST: Feket Enike
+  # TEST: Fekete Niké
+  # TEST: Fekét Énike
+  # TEST: Fékete Niké
+  # TEST: Féket Énike
+
+  if (TEMPSORTFILE != "") {
+      IGNORECASE=0
+      n = -1
+
+      while(getline line < TEMPSORTFILE) {
+          if (same_with_different_accents(line, prevline)) {
+              n++
+              store[n] = prevline
+          } else {
+              if (n > 0) {
+                  n++
+                  store[n] = prevline
+                  vowel_sort(store, n)
+              } else {
+                  if (n > -1)
+                      print_without_index_and_separator(prevline)
+              }
+              n = 0
+          }
+          prevline = line
+      }
+      if (n > 0) {
+          n++
+          store[n] = prevline
+          vowel_sort(store, n)
+      } else {
+          if (n > -1)
+              print_without_index_and_separator(prevline)
+      }
+
+      if (debug)
+          system("cat " TEMPSORTFILE)
+      system("rm " TEMPSORTFILE)
+  }
+  if (!debug)
+      system("rm " TEMPFILE)
+}
