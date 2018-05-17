@@ -1,6 +1,6 @@
-# About zsort
+# About Zsort
 
-zsort is an awk sort script for Hungarian texts, also a
+Zsort is a gAWK sort script for Hungarian texts, also a
 demonstration of morphological analysis by Hunspell.
 
 ```
@@ -19,16 +19,16 @@ collating, sorting and hyphenation. Recent collate algorithms
 of glibc locale and ICU/Unicode CLDR cannot handle this
 ambiguity, resulting bad Hungarian collation and sorting.
 
-zsort is a free command-line replacement of the web tool akhsort
+Zsort is a free command-line replacement of the web tool akhsort
 (that was developed by Research Institute for Linguistics of
-Hungarian Academy of Sciences). Unlike akhsort, zsort works
+Hungarian Academy of Sciences). Unlike akhsort, Zsort works
 with compound words and titles correctly, and it has no limitations
 (for example, it can sort millions of words within a few minutes)
 and known dictionary bugs (like bad sorting of *másszor* in akhsort).
 
 ## Installation
 
-zsort needs not only Hunspell, but a recent Hungarian Hunspell
+Zsort needs not only Hunspell, but a recent Hungarian Hunspell
 dictionary, too. That will be available in LibreOffice repository:
 
 ```
@@ -39,7 +39,7 @@ sudo cp hu_HU.aff hu_HU.dic /usr/share/hunspell
 
 ## Usage
 
-zsort waits its data from the standard input, and it prints the
+Zsort waits its data from the standard input, and it prints the
 sorted lines in the standard output:
 
 ```
