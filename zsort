@@ -2,7 +2,8 @@
 #
 # zsort - sort lines of Hungarian text files using Hunspell
 #         morphological analysis with Magyar Ispell 1.7 language data,
-#         fixing known problems of collate algorithm of glibc and ICU.
+#         fixing known problems of collate algorithm of glibc or
+#         ICU/Unicode CLDR
 #
 #         Lines can contain words and titles.
 #
@@ -155,9 +156,9 @@ BEGIN {
 # TEST: Balog Zoltán
 # TEST: Balogyai Aladár
 # TEST: Baló Gyula
-# test: betű
-# test: Betű
-# test: BETŰ
+# TEST: betű
+# TEST: Betű
+# TEST: BETŰ
 # TEST: Haj, rá pácolaj
 # TEST: Hajrá, pácolaj
 # TEST: Haj, rá pácsó
