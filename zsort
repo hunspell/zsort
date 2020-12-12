@@ -57,6 +57,17 @@
 
 # === UNIT TESTING ===
 
+function get_path() {
+  "whereis zsort" | getline $0
+  WHERE_I_AM = $2
+  if (WHERE_I_AM == "")
+  {
+      # fallback for not installed zsort
+      WHERE_I_AM="./zsort"
+  }
+  return WHERE_I_AM
+}
+
 function do_test() {
   if (n == 0)
       return
@@ -67,7 +78,7 @@ function do_test() {
   }
   close(TEMPGEN)
   close(TEMPCHECKFILE)
-  if (system("zsort -v debug="(debug) " < " TEMPCHECKFILE " >" TEMPCHECKFILE".zsort; diff -u "TEMPCHECKFILE " " TEMPCHECKFILE ".zsort >"TEMPCHECKFILE".diff")) {
+  if (system(get_path()" -v debug="(debug) " < " TEMPCHECKFILE " >" TEMPCHECKFILE".zsort; diff -u "TEMPCHECKFILE " " TEMPCHECKFILE ".zsort >"TEMPCHECKFILE".diff")) {
       system("cat "TEMPCHECKFILE".diff")
   }
   system("rm " TEMPCHECKFILE " " TEMPCHECKFILE ".*")
@@ -75,9 +86,8 @@ function do_test() {
 }
 
 function do_check() {
-  "whereis zsort" | getline $0
-  WHERE_I_AM = $2
   n = 0
+  WHERE_I_AM = get_path()
   while (getline $0 < WHERE_I_AM) {
       if (match($0, "^\\s*# TEST:\\s*(.*)", m)) {
           TEST[++n] = m[1]
@@ -104,6 +114,9 @@ BEGIN {
   getline ordering < TEMPTESTFILE
   close(TEMPTESTFILE)
   system("rm " TEMPTESTFILE)
+
+  # separator
+  SEPARATOR = (debug==1) ? "@" : "‌"
 
   PROCESS_OR_SAVE = "| cut -f2- | sed 's/"SEPARATOR"//g'"
   if (ordering == "zsáner") {
@@ -132,9 +145,6 @@ BEGIN {
       HUNSPELL = "hunspell -d hu_HU"
 
   ANALYSING = HUNSPELL" -m >" TEMPFILE
-
-  # separator
-  SEPARATOR = (debug==1) ? "@" : "‌"
 
   # SORT = command for sorting (saved in temp file, if glibc has the ordering bug "zsáner" < "zsanér"
   SORT = "LC_COLLATE=hu_HU.UTF-8 sort -k 1,1 " PROCESS_OR_SAVE
